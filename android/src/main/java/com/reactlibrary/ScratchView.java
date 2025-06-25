@@ -41,6 +41,7 @@ public class ScratchView extends View implements View.OnTouchListener {
     float scratchProgress;
     int placeholderColor = -1;
     float lastX, lastY; // Store last touch point
+    Path currentPath; // Path for current stroke
 
     Paint imagePaint = new Paint();
     Paint pathPaint = new Paint();
@@ -268,7 +269,7 @@ public class ScratchView extends View implements View.OnTouchListener {
         // Path is now applied directly to the bitmap, no need to draw it separately
     }
 
-        @Override
+    @Override
     public boolean onTouch(View view, MotionEvent motionEvent) {
         float x = motionEvent.getX();
         float y = motionEvent.getY();
@@ -281,12 +282,18 @@ public class ScratchView extends View implements View.OnTouchListener {
                     : ((getHeight() < getWidth() ? getHeight() : getWidth()) / 10f);
             imageRect = new Rect(0, 0, getWidth(), getHeight());
             pathPaint.setStrokeWidth(strokeWidth);
+            pathPaint.setStrokeCap(Paint.Cap.ROUND);
+            pathPaint.setStrokeJoin(Paint.Join.ROUND);
+
+            // Create new path for this stroke
+            currentPath = new Path();
+            currentPath.moveTo(x, y);
 
             // Store the initial point
             lastX = x;
             lastY = y;
 
-            // Draw initial point
+            // Draw initial point as a small circle
             if (image != null) {
                 Canvas bitmapCanvas = new Canvas(image);
                 bitmapCanvas.drawCircle(x, y, strokeWidth / 2, pathPaint);
@@ -295,21 +302,45 @@ public class ScratchView extends View implements View.OnTouchListener {
             }
             break;
         case MotionEvent.ACTION_MOVE:
-            if (image != null) {
-                // Draw line from last point to current point
+            if (image != null && currentPath != null) {
                 Canvas bitmapCanvas = new Canvas(image);
-                bitmapCanvas.drawLine(lastX, lastY, x, y, pathPaint);
 
-                lastX = x;
-                lastY = y;
+                // Calculate midpoint for smooth curves
+                float midX = (lastX + x) / 2;
+                float midY = (lastY + y) / 2;
 
-                updateGrid((int)x, (int)y);
-                invalidate(); // Redraw the view with the updated bitmap
+                // Only draw if we've moved a reasonable distance
+                float dx = Math.abs(x - lastX);
+                float dy = Math.abs(y - lastY);
+                if (dx >= 4 || dy >= 4) {
+                    // Create smooth curve using quadratic bezier
+                    currentPath.quadTo(lastX, lastY, midX, midY);
+
+                    // Draw the path segment on the bitmap
+                    bitmapCanvas.drawPath(currentPath, pathPaint);
+
+                    // Reset path and move to current midpoint for next segment
+                    currentPath.reset();
+                    currentPath.moveTo(midX, midY);
+
+                    updateGrid((int)x, (int)y);
+                    lastX = x;
+                    lastY = y;
+                    invalidate();
+                }
             }
             break;
         case MotionEvent.ACTION_CANCEL:
         case MotionEvent.ACTION_UP:
+            // Draw final path segment if there's remaining path
+            if (image != null && currentPath != null) {
+                Canvas bitmapCanvas = new Canvas(image);
+                currentPath.lineTo(lastX, lastY);
+                bitmapCanvas.drawPath(currentPath, pathPaint);
+                invalidate();
+            }
             reportTouchState(false);
+            currentPath = null;
             break;
         }
         return true;
