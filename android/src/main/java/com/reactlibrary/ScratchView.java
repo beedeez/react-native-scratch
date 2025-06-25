@@ -33,7 +33,6 @@ public class ScratchView extends View implements View.OnTouchListener {
     String resourceName = null;
     String resizeMode = "stretch";
     Bitmap image;
-    Path path;
     float minDimension;
     float gridSize;
     ArrayList<ArrayList<Boolean>> grid;
@@ -41,6 +40,7 @@ public class ScratchView extends View implements View.OnTouchListener {
     int clearPointsCounter;
     float scratchProgress;
     int placeholderColor = -1;
+    float lastX, lastY; // Store last touch point
 
     Paint imagePaint = new Paint();
     Paint pathPaint = new Paint();
@@ -113,7 +113,6 @@ public class ScratchView extends View implements View.OnTouchListener {
     }
 
     private void loadImage() {
-        path = null;
         if (imageUrl != null) {
             Thread thread = new Thread(new Runnable() {
                 @Override
@@ -266,15 +265,13 @@ public class ScratchView extends View implements View.OnTouchListener {
 
         canvas.drawBitmap(image, new Rect(0, 0, image.getWidth(), image.getHeight()), imageRect, imagePaint);
 
-        if (path != null) {
-            canvas.drawPath(path, pathPaint);
-        }
+        // Path is now applied directly to the bitmap, no need to draw it separately
     }
 
-    @Override
+        @Override
     public boolean onTouch(View view, MotionEvent motionEvent) {
-        int x = (int) motionEvent.getX();
-        int y = (int) motionEvent.getY();
+        float x = motionEvent.getX();
+        float y = motionEvent.getY();
 
         switch (motionEvent.getAction()) {
         case MotionEvent.ACTION_DOWN:
@@ -284,23 +281,35 @@ public class ScratchView extends View implements View.OnTouchListener {
                     : ((getHeight() < getWidth() ? getHeight() : getWidth()) / 10f);
             imageRect = new Rect(0, 0, getWidth(), getHeight());
             pathPaint.setStrokeWidth(strokeWidth);
-            path = new Path();
-            path.moveTo(x, y);
-            invalidate(); // Immediate redraw for touch start
+
+            // Store the initial point
+            lastX = x;
+            lastY = y;
+
+            // Draw initial point
+            if (image != null) {
+                Canvas bitmapCanvas = new Canvas(image);
+                bitmapCanvas.drawCircle(x, y, strokeWidth / 2, pathPaint);
+                updateGrid((int)x, (int)y);
+                invalidate();
+            }
             break;
         case MotionEvent.ACTION_MOVE:
-            if (path != null) {
-                path.lineTo(x, y);
-                updateGrid(x, y);
-                invalidate(); // Immediate redraw during movement - fixes black brush issue
+            if (image != null) {
+                // Draw line from last point to current point
+                Canvas bitmapCanvas = new Canvas(image);
+                bitmapCanvas.drawLine(lastX, lastY, x, y, pathPaint);
+
+                lastX = x;
+                lastY = y;
+
+                updateGrid((int)x, (int)y);
+                invalidate(); // Redraw the view with the updated bitmap
             }
             break;
         case MotionEvent.ACTION_CANCEL:
         case MotionEvent.ACTION_UP:
             reportTouchState(false);
-            image = createBitmapFromView();
-            path = null;
-            invalidate(); // Final redraw
             break;
         }
         return true;
