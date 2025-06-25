@@ -286,11 +286,13 @@ public class ScratchView extends View implements View.OnTouchListener {
             pathPaint.setStrokeWidth(strokeWidth);
             path = new Path();
             path.moveTo(x, y);
+            invalidate(); // Immediate redraw for touch start
             break;
         case MotionEvent.ACTION_MOVE:
             if (path != null) {
                 path.lineTo(x, y);
                 updateGrid(x, y);
+                invalidate(); // Immediate redraw during movement - fixes black brush issue
             }
             break;
         case MotionEvent.ACTION_CANCEL:
@@ -298,9 +300,9 @@ public class ScratchView extends View implements View.OnTouchListener {
             reportTouchState(false);
             image = createBitmapFromView();
             path = null;
+            invalidate(); // Final redraw
             break;
         }
-        invalidate();
         return true;
     }
 

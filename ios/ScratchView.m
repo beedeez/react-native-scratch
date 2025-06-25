@@ -14,6 +14,15 @@
   return self;
 }
 
+-(void)dealloc
+{
+  // Clean up resources
+  image = nil;
+  backgroundColorImage = nil;
+  path = nil;
+  grid = nil;
+}
+
 -(id) initWithFrame:(CGRect)frame
 {
   if (self = [super initWithFrame:frame]) {
@@ -111,7 +120,8 @@
 }
 
 -(void) reset {
-  minDimension = self.frame.size.width > self.frame.size.height ? self.frame.size.height: self.frame.size.width;
+  // Use bounds instead of frame for better orientation handling
+  minDimension = self.bounds.size.width > self.bounds.size.height ? self.bounds.size.height: self.bounds.size.width;
   brushSize = brushSize > 0 ? brushSize : minDimension / 10.0f;
   brushSize = MAX(1, MIN(100, brushSize));
   threshold = threshold > 0 ? threshold : 50;
@@ -124,7 +134,7 @@
 }
 
 -(void) initGrid
-{ 
+{
   gridSize = MAX(MIN(ceil(minDimension / brushSize), 29), 9);
   grid = [[NSMutableArray alloc] initWithCapacity: gridSize];
   for (int x = 0; x < gridSize; x++)
@@ -142,10 +152,22 @@
 
 -(void) updateGrid: (CGPoint)point
 {
-  float viewWidth = self.frame.size.width;
-  float viewHeight = self.frame.size.height;
-  int pointInGridX = roundf((MAX(MIN(point.x, viewWidth), 0) / viewWidth) * (gridSize - 1.0f));
-  int pointInGridY = roundf((MAX(MIN(point.y, viewHeight), 0) / viewHeight) * (gridSize - 1.0f));
+  // Use bounds instead of frame for better orientation handling
+  float viewWidth = self.bounds.size.width;
+  float viewHeight = self.bounds.size.height;
+
+  // Ensure point is within bounds regardless of orientation
+  CGPoint normalizedPoint = point;
+  normalizedPoint.x = MAX(MIN(normalizedPoint.x, viewWidth), 0);
+  normalizedPoint.y = MAX(MIN(normalizedPoint.y, viewHeight), 0);
+
+  int pointInGridX = roundf((normalizedPoint.x / viewWidth) * (gridSize - 1.0f));
+  int pointInGridY = roundf((normalizedPoint.y / viewHeight) * (gridSize - 1.0f));
+
+  // Additional bounds checking for grid indices
+  pointInGridX = MAX(0, MIN(pointInGridX, (int)gridSize - 1));
+  pointInGridY = MAX(0, MIN(pointInGridY, (int)gridSize - 1));
+
   if ([[[grid objectAtIndex:pointInGridX] objectAtIndex: pointInGridY] boolValue]) {
     [[grid objectAtIndex:pointInGridX] replaceObjectAtIndex: pointInGridY withObject: @(NO)];
     clearPointsCounter++;
@@ -155,10 +177,11 @@
 }
 
 -(void) drawImageStart {
-  CGSize selfSize = self.frame.size;
+  // Use bounds instead of frame for better orientation handling
+  CGSize selfSize = self.bounds.size;
   CGSize imgSize = image.size;
   CGFloat scale = image.scale;
-  UIGraphicsBeginImageContextWithOptions(self.frame.size, NO, scale);
+  UIGraphicsBeginImageContextWithOptions(self.bounds.size, NO, scale);
 
   if (!imageTakenFromView) {
     [backgroundColorImage drawInRect:CGRectMake(0, 0, selfSize.width, selfSize.height)];
@@ -185,7 +208,7 @@
   else {
     imageRect = CGRectMake(0, 0, selfSize.width, selfSize.height);
   }
-  
+
   if (image == nil) {
     return;
   }
@@ -218,9 +241,12 @@
   UITouch *touch = [touches anyObject];
   path = [UIBezierPath bezierPath];
   path.lineWidth = brushSize;
-  
+  path.lineCapStyle = kCGLineCapRound;
+  path.lineJoinStyle = kCGLineJoinRound;
+
   CGPoint point = [touch locationInView:self];
   [path moveToPoint:point];
+  [self updateGrid:point]; // Update grid immediately on touch start
   [self drawImageStart];
 }
 
@@ -228,6 +254,12 @@
 {
   UITouch *touch = [touches anyObject];
   CGPoint point = [touch locationInView:self];
+
+  // Validate point is within bounds
+  if (point.x < 0 || point.y < 0 || point.x > self.bounds.size.width || point.y > self.bounds.size.height) {
+    return;
+  }
+
   [path addLineToPoint:point];
   [self updateGrid: point];
   if (!cleared && scratchProgress > threshold) {
