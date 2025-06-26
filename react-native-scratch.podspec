@@ -2,6 +2,11 @@ require 'json'
 
 package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
 
+# Define folly_compiler_flags function before using it
+def folly_compiler_flags
+  '-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -Wno-comma -Wno-shorten-64-to-32'
+end
+
 Pod::Spec.new do |s|
   s.name             = package['name']
   s.version          = package['version']
@@ -36,10 +41,5 @@ Pod::Spec.new do |s|
   end
 
   s.dependency 'React-Core'
-
-  # Define folly_compiler_flags if not already defined
-  def folly_compiler_flags
-    '-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -Wno-comma -Wno-shorten-64-to-32'
-  end
 
 end
