@@ -27,10 +27,5 @@
 	"peerDependencies": {
 		"react": ">=17.0.0",
 		"react-native": ">=0.70.0"
-	},
-	"codegenConfig": {
-		"name": "RNTScratchViewSpec",
-		"type": "components",
-		"jsSrcsDir": "./src"
 	}
 }
